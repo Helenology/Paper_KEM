@@ -27,44 +27,52 @@ class GMM:
         """
         Initialization.
         :param K: The number of the classes.
+            It is consistently set to 3 in my simulation and experiment.
         :param shape: The shape of the CT data.
-        :param training_data:
-            The data used for estimate the parameters.
-            Only the non-zero position has useful info of the CT data.
-        :param position_mask: If =1, the voxel position is selected; otherwise =0, not selected.
-        :param kmeans_sample_ratio: (100*?)% data used for kmeans initialization.
-        :param testing_data: The data used for computing the SPE(square prediction error).
+        :param training_data: The training data to be used for parameter estimation.
+            CT data = training_data + testing_data
+            Here, we use position_mask to denote whether a position belongs to the training_data (=1) or not (=0).
+            training_data = CT data * position_mask
+            testing_data = CT data * (1 - position_mask)
+        :param position_mask: If =1, the position is training data; otherwise =0, is not training data.
+        :param kmeans_sample_ratio: (100*kmeans_sample_ratio)% data are used for a fast initialization.
+        :param testing_data: The data used for computing the SPE (Square Prediction Error).
         """
-        self.position_mask = position_mask
-        self.K = K
-        self.shape = shape
-        self.training_data = training_data
-        self.testing_data = testing_data
-        self.current_steps = 0
+        ##############################################################
+        #                              Input                         #
+        ##############################################################
+        self.position_mask = position_mask  # indicator for training data
+        self.K = K                          # the number of classes
+        self.shape = shape                  # shape of the CT data
+        self.training_data = training_data  # training_data = CT data * position_mask
+        self.testing_data = testing_data    # testing_data = CT data * (1 - position_mask); or None if position_mask=1
+        self.current_steps = 0              # current step in the optimization
 
-        ################### Parameter Initialization
+        ##############################################################
+        #                  Parameter Initialization                  #
+        ##############################################################
         # pik: posterior probability
-        self.pik_estimate = tf.ones((self.K, *shape, 1)) / self.K  # (K, 1, 1, 1, 1)
+        self.pik_estimate = tf.ones((self.K, *shape, 1)) / self.K  # with shape (K, 1, 1, 1, 1)
         # pi: prior probability
-        self.pi_estimate = tf.ones((self.K, 1, 1, 1, 1)) / self.K  # (K, 1, 1, 1, 1)
+        self.pi_estimate = tf.ones((self.K, 1, 1, 1, 1)) / self.K  # with shape (K, 1, 1, 1, 1)
         # sigma: standard deviation
-        self.sigma_estimate = tf.ones((self.K, 1, 1, 1, 1)) * 0.05  # (K, 1, 1, 1, 1)
+        self.sigma_estimate = tf.ones((self.K, 1, 1, 1, 1)) * 0.05  # with shape (K, 1, 1, 1, 1)
         # mu: mean
-        # mu initialization: kmeans
+        ###################### subsampling kmeans initialization for mu
         self.mu_estimate = tf.ones((self.K, 1, 1, 1, 1))
         print(f"From function(__init__): Initialize mu via kmeans(with K={self.K})")
         t1 = time.time()
         x = self.training_data[self.position_mask > 0.5]  # select available training data
-        x = tf.reshape(x, [-1, 1])  # reshape the data into a 2-dimensional array
-        # Randomly select (kmeans_sample_ratio) data to conduct the following kmeans algo
+        x = tf.reshape(x, [-1, 1])                        # reshape the data into a 2-dimensional array
+        # randomly select (kmeans_sample_ratio) data
         random_x_sample_index = np.random.binomial(n=1, p=kmeans_sample_ratio, size=x.shape[0])
-        random_x_sample = x[random_x_sample_index == 1]  # select the chosen data for kmeans
+        random_x_sample = x[random_x_sample_index == 1]   # maintain the chosen data for kmeans
         print(f"From function(__init__): Randomly pick {random_x_sample_index.sum() / x.shape[0]:.4} data for kmeans.")
-        model = KMeans(n_clusters=self.K)        # kmeans algorithm
-        model.fit(random_x_sample)               # fit random sample from training data
-        centers = model.cluster_centers_         # kmeans centers
-        centers = centers.reshape((self.K,))          # reshape the centers into vectors
-        centers = sorted(centers, reverse=True)  # order the centers in descending order
+        model = KMeans(n_clusters=self.K)                 # kmeans model
+        model.fit(random_x_sample)                        # kmeans fitting
+        centers = model.cluster_centers_                  # kmeans centers
+        centers = centers.reshape((self.K,))              # reshape the centers into vector form
+        centers = sorted(centers, reverse=True)           # order the centers in descending order
         centers = tf.reshape(tf.cast(tf.constant(centers), tf.float32), [self.K, 1, 1, 1, 1])
         self.centers = centers
         self.mu_estimate *= self.centers
@@ -77,7 +85,7 @@ class GMM:
 
     def gmm_algorithm(self, max_steps, epsilon, smooth_parameter=1e-5):
         """
-        KEM algorithm
+        GMM algorithm.
         :param max_steps: The max iteration steps.
         :param epsilon: The terminal condition of the distance of the estimators in two consecutive steps.
         :param smooth_parameter: The smoothing term to avoid python errors.
