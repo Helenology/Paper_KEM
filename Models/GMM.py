@@ -10,6 +10,7 @@
 import time
 from sklearn.cluster import KMeans
 import sys
+import numpy as np
 
 sys.path.append('../')
 from utils import *
@@ -41,7 +42,7 @@ class GMM:
         ##############################################################
         #                              Input                         #
         ##############################################################
-        self.position_mask = position_mask  # indicator for training data
+        self.position_mask = position_mask  # indicator for training data positions
         self.K = K                          # the number of classes
         self.shape = shape                  # shape of the CT data
         self.training_data = training_data  # training_data = CT data * position_mask
@@ -62,20 +63,20 @@ class GMM:
         self.mu_estimate = tf.ones((self.K, 1, 1, 1, 1))
         print(f"From function(__init__): Initialize mu via kmeans(with K={self.K})")
         t1 = time.time()
-        x = self.training_data[self.position_mask > 0.5]  # select available training data
-        x = tf.reshape(x, [-1, 1])                        # reshape the data into a 2-dimensional array
+        x = self.training_data[self.position_mask > 0.5]   # select available training data
+        x = tf.reshape(x, [-1, 1])                         # reshape the data into a 2-dimensional array
         # randomly select (kmeans_sample_ratio) data
         random_x_sample_index = np.random.binomial(n=1, p=kmeans_sample_ratio, size=x.shape[0])
-        random_x_sample = x[random_x_sample_index == 1]   # maintain the chosen data for kmeans
+        random_x_sample = x[random_x_sample_index == 1]    # maintain the chosen data for kmeans
         print(f"From function(__init__): Randomly pick {random_x_sample_index.sum() / x.shape[0]:.4} data for kmeans.")
-        model = KMeans(n_clusters=self.K)                 # kmeans model
-        model.fit(random_x_sample)                        # kmeans fitting
-        centers = model.cluster_centers_                  # kmeans centers
-        centers = centers.reshape((self.K,))              # reshape the centers into vector form
-        centers = sorted(centers, reverse=True)           # order the centers in descending order
+        model = KMeans(n_clusters=self.K, random_state=0)  # kmeans algorithm
+        model.fit(random_x_sample)                         # kmeans fitting
+        centers = model.cluster_centers_                   # kmeans centers
+        centers = centers.reshape((self.K,))               # reshape the centers into vector form
+        centers = sorted(centers, reverse=True)            # order the centers in descending order
         centers = tf.reshape(tf.cast(tf.constant(centers), tf.float32), [self.K, 1, 1, 1, 1])
         self.centers = centers
-        self.mu_estimate *= self.centers                  # keep the kmeans centers as the mean initialization
+        self.mu_estimate *= self.centers                   # save the kmeans centers as the mean initialization
         t2 = time.time()
         print(f"From function(__init__): KMeans(with K={self.K}) success, with time: {t2 - t1:.4} seconds\n"
               f"\tcenters: {tf.squeeze(self.centers)}")
@@ -208,7 +209,7 @@ class GMM:
 
     def compute_prediction_error(self):
         """
-        Compute SPE (Square Prediction Error).
+        Compute SPE (Square Prediction Error) on the testing data.
         :return: computed SPE metric
         """
         assert self.testing_data is not None
