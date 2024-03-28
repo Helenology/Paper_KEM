@@ -23,7 +23,7 @@ This repository provides python codes for the KEM kernel-based expectation-maxim
 └── utils.py
 ```
 
-## Prerequisites
+## Pre-requisites
 
 **🚩 Python Packages**
 
@@ -34,3 +34,4 @@ This repository provides python codes for the KEM kernel-based expectation-maxim
 - `glob`
 - `gc`
 - `sklearn`
+

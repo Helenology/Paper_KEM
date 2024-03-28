@@ -55,16 +55,16 @@ class Kmeans:
 
         ###################### subsampling kmeans initialization
 
-        x = self.training_data[self.position_mask > 0.5]   # select available training data
-        x = tf.reshape(x, [-1, 1])                         # reshape the data into a 2-dimensional array
+        x = self.training_data[self.position_mask > 0.5]  # select available training data
+        x = tf.reshape(x, [-1, 1])                        # reshape the data into a 2-dimensional array
         # randomly select (kmeans_sample_ratio) data
         random_x_sample_index = np.random.binomial(n=1, p=kmeans_sample_ratio, size=x.shape[0])
-        random_x_sample = x[random_x_sample_index == 1]    # maintain the chosen data for kmeans
+        random_x_sample = x[random_x_sample_index == 1]   # maintain the chosen data for kmeans
         print(f"From function(__init__): Randomly pick {random_x_sample_index.sum() / x.shape[0]:.4} data for kmeans.")
-        model = KMeans(n_clusters=self.K, random_state=0)  # kmeans algorithm
-        model.fit(random_x_sample)                         # kmeans fitting
+        model = KMeans(n_clusters=self.K)                 # kmeans algorithm
+        model.fit(random_x_sample)                        # kmeans fitting
         self.centers = -np.sort(-model.cluster_centers_.reshape(self.K,))  # kmeans centers
-        self.centers = self.centers.reshape((self.K, 1))   # save the kmeans centers
+        self.centers = self.centers.reshape((self.K, 1))  # save the kmeans centers
 
     def kmeans_algorithm(self, max_steps):
         """
