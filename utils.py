@@ -144,28 +144,7 @@ def truncate(img, truncate_shape):
     return truncate_img
 
 
-# def show_slice(aslice, title=None, Bar=True, OutLines=True):
-#     """
-#     Show a slice through matplotlib.pyplot.
-#     :param aslice: the slice to be shown as an image
-#     :param title: default is None; if title is not None, then it is set as the title
-#     :param Bar: default is True, a colorbar will be plotted; otherwise, the colorbar will not be shown
-#     :param OutLines: default is True, a black frame will be added; othwise, the black frame will not be added
-#     :return: nothing
-#     """
-#     plt.imshow(aslice, cmap=plt.cm.bone)  # use the colormap popular in medical field
-#     if OutLines:
-#         plt.xticks([])  # a black frame is maintained
-#         plt.yticks([])
-#     else:
-#         plt.axis('off')  # the black frame is removed
-#     if Bar:
-#         plt.colorbar()  # a colorbar is added
-#     if title is not None:
-#         plt.title(title)  # title of the plot
-#     plt.show()
-
-def show_slice(aslice, title=None, Bar=True, OutLines=True, Bar_range=None):
+def show_slice(aslice, title=None, Bar=True, OutLines=True, Bar_range=None, cmap=plt.cm.bone_r):
     """
     Show a slice through matplotlib.pyplot.
     :param aslice: the slice to be shown as an image
@@ -183,25 +162,25 @@ def show_slice(aslice, title=None, Bar=True, OutLines=True, Bar_range=None):
     # no need to set the colorkey range; keep it default
     else:
         norm = None
-    
+
     ############################## plot the image
-    plt.imshow(aslice, cmap=plt.cm.bone_r, norm=norm) # norm的操作是把颜色固定在特定范围内，保证不同子图绘制出来的颜色是对齐的
-    
-    ############################## add a colorbar 
+    plt.imshow(aslice, cmap=cmap, norm=norm)  # norm的操作是把颜色固定在特定范围内，保证不同子图绘制出来的颜色是对齐的
+
+    ############################## add a colorbar
     if Bar:
-        plt.colorbar()    
-    
-    ############################## outframe
+        plt.colorbar()
+
+        ############################## outframe
     if OutLines:  # black frame is maintained
-        plt.xticks([])  
+        plt.xticks([])
         plt.yticks([])
     else:  # the black frame is removed
         plt.axis('off')
-    
+
     ############################## title
     if title is not None:
         plt.title(title)
-    
+
     plt.show()
 
 
@@ -296,7 +275,6 @@ def compute_single_RMSE(estimator, parameter):
     mse = mse.numpy()
     rmse = np.sqrt(mse)
     return rmse
-
 
 # def epanechnikov_kernel_function(x1, x2, h, shape):
 #     """
