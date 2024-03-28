@@ -140,23 +140,23 @@ class Kmeans:
         # predicted labels
         labels = tf.convert_to_tensor(labels, dtype=tf.float32)
         return labels
-    #
-    # def predict_all_class(self):
-    #     data = tf.reshape(self.training_data, [-1, 1])
-    #     data = data.numpy()
-    #     print(self.training_data.shape)
-    #
-    #     # re-organize the clustering orders
-    #     index_order = np.argsort(-self.kmeans.cluster_centers_.reshape(self.K, ))  # in descending order
-    #     tmp_labels = self.kmeans.predict(data)  # in the original order
-    #     labels = np.zeros_like(tmp_labels)
-    #
-    #     # re-order the clustering label
-    #     for k in range(self.K):
-    #         labels[tmp_labels == index_order[k]] = k
-    #
-    #     # compute prediction accuracy
-    #     labels = tf.convert_to_tensor(labels, dtype=tf.float32)
-    #     labels = tf.reshape(labels, self.training_data.shape)
-    #     return labels
+
+    def predict_all_class(self):
+        data = tf.reshape(self.training_data, [-1, 1])
+        data = data.numpy()
+        print(self.training_data.shape)
+
+        # re-organize the clustering orders
+        index_order = np.argsort(-self.kmeans.cluster_centers_.reshape(self.K, ))  # in descending order
+        tmp_labels = self.kmeans.predict(data)  # in the original order
+        labels = np.zeros_like(tmp_labels)
+
+        # re-order the clustering label
+        for k in range(self.K):
+            labels[tmp_labels == index_order[k]] = k
+
+        # compute prediction accuracy
+        labels = tf.convert_to_tensor(labels, dtype=tf.float32)
+        labels = tf.reshape(labels, self.training_data.shape)
+        return labels
 

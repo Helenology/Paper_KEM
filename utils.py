@@ -162,28 +162,28 @@ def show_slice(aslice, title=None, Bar=True, OutLines=True, Bar_range=None, cmap
     # no need to set the colorkey range; keep it default
     else:
         norm = None
-
+    
     ############################## plot the image
     plt.imshow(aslice, cmap=cmap, norm=norm)  # norm的操作是把颜色固定在特定范围内，保证不同子图绘制出来的颜色是对齐的
-
-    ############################## add a colorbar
+    
+    ############################## add a colorbar 
     if Bar:
-        plt.colorbar()
-
-        ############################## outframe
+        plt.colorbar()    
+    
+    ############################## outframe
     if OutLines:  # black frame is maintained
-        plt.xticks([])
+        plt.xticks([])  
         plt.yticks([])
     else:  # the black frame is removed
         plt.axis('off')
-
+    
     ############################## title
     if title is not None:
         plt.title(title)
-
+    
     plt.show()
 
-
+    
 def bandwidth_preparation(CT_shape, position_mask, Ch):
     """
     prepare the bandwidth and kernel shape
@@ -275,6 +275,7 @@ def compute_single_RMSE(estimator, parameter):
     mse = mse.numpy()
     rmse = np.sqrt(mse)
     return rmse
+
 
 # def epanechnikov_kernel_function(x1, x2, h, shape):
 #     """

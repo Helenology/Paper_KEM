@@ -288,4 +288,3 @@ def transfer_pi_to_dicom_raw(vessel, original_folder, output_folder, truncate_th
         dcm.save_as(output_folder + dcm_file.split('/')[-1])  # save the slice in dicom type
     print(f"====successfully save the dicom files at {output_folder}====")
     return vessel_uint
-
