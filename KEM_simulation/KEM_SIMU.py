@@ -22,50 +22,63 @@ class KEM_SIMU_complex():
                  kmeans_sample_ratio=1 / 100,
                  testing_data=None):
         """
-        Initialize the algorithm
-        :param K: which should be 3
-        :param shape: the shape of the CT data
-        :param training_data: if =0, the voxel position is not selected for KEM algorithm
-        :param position_mask: if =1 the voxel position is selected for KEM algorithm; otherwise =0, not selected
-        :param kernel_shape: the shape of the filter/kernel in the 3D convolution
-        :param bandwidth: the bandwidth used in kernel smoothing
-        :param kmeans_sample_ratio: ?% data used for kmeans
-        :param testing_data: for computing SPE(square prediction error)
+        Initialization.
+        :param K: The number of the classes.
+            It is consistently set to 3 in my simulation and experiment.
+        :param shape: The shape of the CT data.
+        :param training_data: The training data to be used for parameter estimation.
+            CT data = training_data + testing_data
+            Here, we use position_mask to denote whether a position belongs to the training_data (=1) or not (=0).
+            training_data = CT data * position_mask
+            testing_data = CT data * (1 - position_mask)
+        :param position_mask: If =1, the position is training data; otherwise =0, is not training data.
+        :param kmeans_sample_ratio: (100*kmeans_sample_ratio)% data are used for a fast initialization.
+        :param testing_data: The data used for computing the SPE (Square Prediction Error).
         """
-        self.position_mask = position_mask
-        self.K = K
-        self.shape = shape
-        self.training_data = training_data
-        self.testing_data = testing_data
-        self.current_steps = 0  # KEM algorithm iteration steps
-        # Initialization
-        self.pik_estimate = tf.ones((self.K, *shape, 1)) / self.K  # (K, depth, height, width, 1)
-        self.pi_estimate = tf.ones((self.K, *shape, 1)) / self.K  # equal prior probability initialization
-        self.sigma_estimate = tf.ones((self.K, *shape, 1)) * 0.05  # standard deviation initialization
-        # mu initialization: using kmeans
+        ##############################################################
+        #                              Input                         #
+        ##############################################################
+        self.position_mask = position_mask  # indicator for training data positions
+        self.K = K                          # the number of classes
+        self.shape = shape                  # shape of the CT data
+        self.training_data = training_data  # training_data = CT data * position_mask
+        self.testing_data = testing_data    # testing_data = CT data * (1 - position_mask); or None if position_mask=1
+        self.current_steps = 0              # current step in the optimization
+
+        ##############################################################
+        #                  Parameter Initialization                  #
+        ##############################################################
+        # pik: posterior probability
+        self.pik_estimate = tf.ones((self.K, *shape, 1)) / self.K  # with shape (K, 1, 1, 1, 1)
+        # pi: prior probability
+        self.pi_estimate = tf.ones((self.K, 1, 1, 1, 1)) / self.K  # with shape (K, 1, 1, 1, 1)
+        # sigma: standard deviation
+        self.sigma_estimate = tf.ones((self.K, 1, 1, 1, 1)) * 0.05  # with shape (K, 1, 1, 1, 1)
+        # mu: mean
+        ###################### subsampling kmeans initialization for mu
         self.mu_estimate = tf.ones((self.K, *shape, 1))
         print(f"From function(__init__): Initialize mu via kmeans(with K={self.K})")
         t1 = time.time()
-        x = self.training_data[self.position_mask > 0.5]  # select available data
-        x = tf.reshape(x, [-1, 1])  # reshape the data into a 2-dimensional array
+        x = self.training_data[self.position_mask > 0.5]   # select available training data
+        x = tf.reshape(x, [-1, 1])                         # reshape the data into a 2-dimensional array
+        # randomly select (kmeans_sample_ratio) data
         random_x_sample_index = np.random.binomial(n=1, p=kmeans_sample_ratio, size=x.shape[0])
-        random_x_sample = x[random_x_sample_index == 1]  # select the chosen data for kmeans
-        print(
-            f"From function(__init__): Randomly pick {random_x_sample_index.sum() / x.shape[0]:.4} positions for kmeans.")
-        model = KMeans(n_clusters=self.K)  # kmeans algorithm
-        model.fit(random_x_sample)
-        centers = model.cluster_centers_
-        centers = centers.reshape((3,))
-        centers = sorted(centers, reverse=True)  # order the centers in descending order
+        random_x_sample = x[random_x_sample_index == 1]    # maintain the chosen data for kmeans
+        print(f"From function(__init__): Randomly pick {random_x_sample_index.sum() / x.shape[0]:.4} data for kmeans.")
+        model = KMeans(n_clusters=self.K)                  # kmeans algorithm
+        model.fit(random_x_sample)                         # kmeans fitting
+        centers = model.cluster_centers_                   # kmeans centers
+        centers = centers.reshape((self.K,))               # reshape the centers into vector form
+        centers = sorted(centers, reverse=True)            # order the centers in descending order
         centers = tf.reshape(tf.cast(tf.constant(centers), tf.float32), [self.K, 1, 1, 1, 1])
         self.centers = centers
-        self.mu_estimate *= self.centers
+        self.mu_estimate *= self.centers                   # save the kmeans centers as the mean initialization
         t2 = time.time()
-        print(
-            f"From function(__init__): KMeans(with K={self.K}) success, with time: {t2 - t1:.4} seconds\n\tcenters: {tf.squeeze(self.centers)}")
+        print(f"From function(__init__): KMeans(with K={self.K}) success, with time: {t2 - t1:.4} seconds\n"
+              f"\tcenters: {tf.squeeze(self.centers)}")
         print("From function(__init__): Initialize parameters successfully.")
-        print(
-            f"\tpik_estimate:{self.pik_estimate.shape}\n\tpi_estimate: {self.pi_estimate.shape}\n\tmu_estimate: {self.mu_estimate.shape}\n\tsigma_estimate: {self.sigma_estimate.shape}")
+        print(f"\tpik_estimate:{self.pik_estimate.shape}\n\tpi_estimate: {self.pi_estimate.shape}\n"
+              f"\tmu_estimate: {self.mu_estimate.shape}\n\tsigma_estimate: {self.sigma_estimate.shape}")
         # kernel initialization
         self.kernel = self.generate_kernel(kernel_shape, bandwidth)  # generate the kernel/filter for 3D convolution
         print("From function(__init__): Initialize kernel successfully.")
@@ -74,17 +87,16 @@ class KEM_SIMU_complex():
     def kem_algorithm(self, max_steps, epsilon, smooth_parameter=1e-5):
         """
         KEM algorithm
-        :param max_steps: the max iteration steps
-        :param epsilon: parameter gap
-        :param smooth_parameter: smooth term
+        :param max_steps: The max iteration steps
+        :param epsilon: The terminal condition of the distance of the estimators in two consecutive steps.
+        :param smooth_parameter: The smoothing term to avoid python errors, e.g., 0/0.
         :return:
         """
         print(f"From function(kem_algorithm): Receive max_steps: {max_steps}.")
-        FLAG_CONTINUE = True  # used for abortion
-        # the denominator of equation (2.9) of the article
+        FLAG_CONTINUE = True  # used for terminal condition
+        # the denominator of equation (2.6)
         self.denominator = tf.nn.conv3d(self.position_mask, self.kernel, strides=[1, 1, 1, 1, 1], padding="SAME")
-        # denominator should not be zero
-        assert tf.reduce_sum(tf.cast(self.denominator == 0, dtype=tf.float32)) == 0
+        assert tf.reduce_sum(tf.cast(self.denominator == 0, dtype=tf.float32)) == 0  # denominator should not be zero
 
         while FLAG_CONTINUE:
             t1 = time.time()
@@ -106,56 +118,54 @@ class KEM_SIMU_complex():
     def e_step(self, smooth_parameter):
         """
         The E step of the KEM algorithm
-        :param smooth_parameter: a small term
-        :return: nothing
+        :param smooth_parameter: The smoothing term to avoid python errors, e.g., 0/0.
+        :return:
         """
-        # update parameters in the E step
-        # $p_ik$ by equation (2.8) in the article
+        # update the posterior probability: $p_ik$ in (2.5)
         pik_estimate = normal_density_function_tf((self.training_data - self.mu_estimate) / self.sigma_estimate) * (
                 self.pi_estimate / self.sigma_estimate)
         pik_estimate_sum = tf.reduce_sum(pik_estimate, axis=0)
         # pik_estimate_sum cannot be 0 since it will serve as denominator
         if tf.reduce_sum(tf.cast(pik_estimate_sum == 0, tf.float32)) > 0:
             print(f"+++ From m_step: add smooth_parameter to pik_estimate")
-            pik_estimate += smooth_parameter
-            pik_estimate_sum = tf.reduce_sum(pik_estimate, axis=0)
-        pik_estimate /= pik_estimate_sum  # sum should be 1
+            pik_estimate += smooth_parameter                        # add smooth parameter to denominator
+            pik_estimate_sum = tf.reduce_sum(pik_estimate, axis=0)  # later adjust the sum to be 1
+        pik_estimate /= pik_estimate_sum                            # adjust the sum to be 1
         pik_difference = tf.reduce_mean((self.pik_estimate - pik_estimate) ** 2)
         print(f"\t Current pik difference: {pik_difference:.6}")
-        self.pik_estimate = pik_estimate  # update self.pik_estimate
+        self.pik_estimate = pik_estimate                            # save the posterior estimators
 
     def m_step(self, smooth_parameter):
         """
         The M step of the KEM algorithm
-        :param smooth_parameter: a small term
-        :return: difference of estimators through updating
+        :param smooth_parameter: The smoothing term to avoid python errors.
+        :return: The difference of estimators between two consecutive steps.
         """
-        # update parameters in the M step
-        # the numerator of $\pi$ by equation (2.9)
+        # update (the numerator of) the prior estimators via (2.6)
         pi_estimate = tf.nn.conv3d(self.pik_estimate * self.position_mask, self.kernel, strides=[1, 1, 1, 1, 1],
-                                   padding="SAME")
-        # pi_estimate cannot be 0 since it will serve as denominator in equations (2.10) and (2.11)
-        if tf.reduce_sum(tf.cast(pi_estimate == 0, tf.float32)) > 0:
+                                   padding="SAME")  # the numerator in (2.6)
+        if tf.reduce_sum(tf.cast(pi_estimate == 0, tf.float32)) > 0:  # pi_estimate cannot be 0 as the denominator in (2.8)
             print(f"+++ From m_step: add smooth_parameter to pi_estimate")
-            pi_estimate += smooth_parameter
-        # the numerator of $\mu$ by equation (2.10)
+            pi_estimate += smooth_parameter  # add smooth parameter
+
+        # update the mean estimators via (2.7)
         mu_estimate = tf.nn.conv3d(self.pik_estimate * self.training_data * self.position_mask, self.kernel,
-                                   strides=[1, 1, 1, 1, 1], padding="SAME")
-        # $\mu$ by equation (2.10)
-        mu_estimate /= pi_estimate
-        # the numerator of $\sigmma^2$ by equation (2.11)
+                                   strides=[1, 1, 1, 1, 1], padding="SAME")  # the numerator of $\mu$
+        mu_estimate /= pi_estimate  # mean estimator in (2.7)
+
+        # update the variance estimator via (2.8)
         sigma2_estimate = tf.nn.conv3d(self.pik_estimate * self.position_mask * (self.training_data - mu_estimate) ** 2,
-                                       self.kernel, strides=[1, 1, 1, 1, 1], padding="SAME")
-        sigma_estimate = tf.sqrt(sigma2_estimate / pi_estimate)
-        # sigma_estimate cannot be 0 since it will serve as denominator in the E step
-        if tf.reduce_sum(tf.cast(sigma_estimate == 0, tf.float32)) > 0:
+                                       self.kernel, strides=[1, 1, 1, 1, 1], padding="SAME")  # the numerator in (2.8)
+        sigma_estimate = tf.sqrt(sigma2_estimate / pi_estimate)  # std estimator in (2.8)
+        if tf.reduce_sum(tf.cast(sigma_estimate == 0, tf.float32)) > 0:  # std cannot be 0
             print(f"From m_step: add smooth_parameter to sigma_estimate")
-            sigma_estimate += smooth_parameter
-        # $\pi$ by equation (2.9)
-        pi_estimate /= self.denominator
+            sigma_estimate += smooth_parameter  # add smooth parameter
+
+        # update  the prior estimators via (2.6)
+        pi_estimate /= self.denominator  # prior estimator in (2.6)
         pi_estimate /= tf.reduce_sum(pi_estimate, axis=0)  # in case of accidents, normalize the pi again
 
-        # compute difference via updating
+        # compute estimator differences
         pi_difference = tf.reduce_mean((self.pi_estimate - pi_estimate) ** 2)
         print(f"\t Current pi difference: {pi_difference:.6}")
         mu_difference = tf.reduce_mean((self.mu_estimate - mu_estimate) ** 2)
@@ -164,7 +174,7 @@ class KEM_SIMU_complex():
         print(f"\t Current sigma difference: {sigma_difference:.6}")
         difference = pi_difference + mu_difference + sigma_difference
 
-        # Update the estimators
+        # save updated estimators
         self.pi_estimate = pi_estimate
         self.mu_estimate = mu_estimate
         self.sigma_estimate = sigma_estimate
@@ -175,11 +185,11 @@ class KEM_SIMU_complex():
         Generate the kernel for 3D convolution operations.
         :param kernel_shape: the shape of the kernel/filter
         :param bandwidth: the bandwidth used for the kernel weight
-        :return: nothing
+        :return:
         """
-        kernel = np.zeros(kernel_shape)
-        center = int((kernel_shape[0]) / 2)
-        center_coordinate = (center, center, center)
+        kernel = np.zeros(kernel_shape)  # filter
+        center = int((kernel_shape[0]) / 2)  # the center point's index
+        center_coordinate = (center, center, center)  # the center point's coordinate
         # iterate each voxel space and compute the kernel weight
         for i in range(kernel_shape[0]):
             for j in range(kernel_shape[1]):
@@ -194,31 +204,35 @@ class KEM_SIMU_complex():
 
     def compute_prediction_error(self):
         """
-        compute SPE(square prediction error)
-        :return:
+        Compute SPE (Square Prediction Error) on the testing data.
+        :return: computed SPE metric
         """
         assert self.testing_data is not None
         # mask=1 then is testing data; otherwise should not be used
         testing_position_mask = 1 - self.position_mask
         testing_size = tf.reduce_sum(testing_position_mask)
-        Y = tf.squeeze(self.testing_data)  # [depth, height, width]
+        Y = tf.squeeze(self.testing_data)  # true Y
         # predict Y
         predict_Y = tf.reduce_sum(tf.squeeze(self.pi_estimate * self.mu_estimate * testing_position_mask), axis=0)
-        # the SPE
+        # SPE
         prediction_error = tf.reduce_sum((Y - predict_Y) ** 2) / testing_size
         prediction_error = prediction_error.numpy()
         return prediction_error
 
     def predict_test_class(self):
+        """
+        Predict the classes for testing data.
+        :return: predicted testing classes
+        """
         assert self.testing_data is not None
-        # Compute the posterior probability of the testing data
+        # compute the posterior probability of the testing data via (2.5)
         self.predict_prob = self.pi_estimate / self.sigma_estimate
         self.predict_prob *= normal_density_function_tf((self.testing_data - self.mu_estimate) / self.sigma_estimate)
         self.predict_prob /= tf.reduce_sum(self.predict_prob, axis=0)
         # Class = argmax_k posterior probability
         self.all_predict_class = tf.cast(tf.argmax(self.predict_prob, axis=0), tf.float32)
-        # Select only the voxel positions of the testing positions
+
+        # select only the voxel positions of the testing positions
         self.predict_class = tf.reshape(self.all_predict_class, self.position_mask.shape)
         self.predict_class = self.predict_class[self.position_mask < 0.5]
-
         return self.predict_class

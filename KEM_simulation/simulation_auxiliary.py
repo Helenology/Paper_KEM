@@ -21,6 +21,7 @@ import os
 from tensorflow.keras.utils import to_categorical
 from data_generate import *  # 参数生成文件
 from KEM_SIMU import *  # KEM 类
+
 sys.path.append('../')
 sys.path.append('../Models/')
 from utils import *
@@ -79,12 +80,12 @@ def compute_Ch_4_cv_reg(stats_dict, Ch_path, training_ratio=0.8):
         Ch = bandwidth / bandwidth_base
         print(f"##########[{index}]########## The {i}th bandwidth from REG ####################")
         kem_reg = KEM_SIMU_complex(K=3, shape=shape,
-                                  training_data=training_data,
-                                  position_mask=position_mask,
-                                  kernel_shape=kernel_shape,
-                                  bandwidth=bandwidth,
-                                  kmeans_sample_ratio=1 / (100 * training_ratio),
-                                  testing_data=testing_data)
+                                   training_data=training_data,
+                                   position_mask=position_mask,
+                                   kernel_shape=kernel_shape,
+                                   bandwidth=bandwidth,
+                                   kmeans_sample_ratio=1 / (100 * training_ratio),
+                                   testing_data=testing_data)
         # KEM Algorithm
         kem_reg.kem_algorithm(max_steps=20, epsilon=1e-4, smooth_parameter=1e-20)
         # SPE on the testing data
@@ -92,9 +93,9 @@ def compute_Ch_4_cv_reg(stats_dict, Ch_path, training_ratio=0.8):
         SPE_results_REG.append([i, kernel_size, bandwidth, SPE, Ch, Ch ** 4 / 4, Ch ** (-3)])
 
     # regression method for bandwidth constant selection
-    SPE_results_DF = pd.DataFrame(SPE_results_REG, columns=["i", "kernel_size", "bandwidth", "SPE", "Ch", 'Ch^4/4', 'Ch^-3'])
+    SPE_results_DF = pd.DataFrame(SPE_results_REG,
+                                  columns=["i", "kernel_size", "bandwidth", "SPE", "Ch", 'Ch^4/4', 'Ch^-3'])
     SPE_results_DF = SPE_results_DF.dropna(axis=0, how='any')
-    SPE_results_DF.to_csv(f"./【results】/REG SPE/patient_{index}.csv")
     model = LinearRegression()
     model = model.fit(SPE_results_DF.loc[:, ['Ch^4/4', 'Ch^-3']], SPE_results_DF.SPE)
     Ch_REG = math.pow((3 * (model.coef_[1]) / (model.coef_[0])), 1 / 7)
@@ -124,20 +125,19 @@ def compute_Ch_4_cv_reg(stats_dict, Ch_path, training_ratio=0.8):
     # CV method for bandwidth constant selection - argmin SPE
     SPE_results_DF = pd.DataFrame(SPE_results_CV, columns=["i", "kernel_size", "coef", "SPE", "Ch"])
     SPE_results_DF = SPE_results_DF.dropna(axis=0, how='any')
-    SPE_results_DF.to_csv(f"./【results】/CV SPE/patient_{index}.csv")
-    CV_min_results = SPE_results_DF.loc[SPE_results_DF.SPE.argmin(), ]
+    CV_min_results = SPE_results_DF.loc[SPE_results_DF.SPE.argmin(),]
     Ch_CV = CV_min_results["Ch"]
     t4 = time.time()
     i_CV = CV_min_results["i"]
     kernel_size_CV = CV_min_results["kernel_size"]
     coef_CV = CV_min_results["coef"]
 
-
     # record results
     with open(Ch_path, 'a', newline='', encoding='utf-8') as f:
         csv_write = csv.writer(f)
         csv_write.writerow(
-            [f"patient_{index}", t2 - t1, Ch_CV, i_CV, kernel_size_CV, coef_CV, t4 - t3, Ch_REG, t3 - t2, model.coef_[0], model.coef_[1]])
+            [f"patient_{index}", t2 - t1, Ch_CV, i_CV, kernel_size_CV, coef_CV, t4 - t3, Ch_REG, t3 - t2,
+             model.coef_[0], model.coef_[1]])
 
 
 def compute_metrics_4_KEM(stats_dict, to_csv_path):
@@ -454,15 +454,17 @@ def compute_metrics_4_GMM_Kmeans(stats_dict, to_csv_path):
             GMM_pi_rmse = compute_single_RMSE(GMM_pi_estimate, pi)
             GMM_mu_rmse = compute_single_RMSE(GMM_mu_estimate, mu)
             GMM_sigma_rmse = compute_single_RMSE(GMM_sigma_estimate, sigma)
-            results += [f"patient_{index}", kmeans_pi_rmse, kmeans_mu_rmse, kmeans_sigma_rmse, GMM_pi_rmse, GMM_mu_rmse, GMM_sigma_rmse]
-            print(f"\tGMM_RMSE: pi_rmse: {GMM_pi_rmse:.4}; mu_rmse: {GMM_mu_rmse:.4}; sigma_rmse: {GMM_sigma_rmse:.4}\n")
+            results += [f"patient_{index}", kmeans_pi_rmse, kmeans_mu_rmse, kmeans_sigma_rmse, GMM_pi_rmse, GMM_mu_rmse,
+                        GMM_sigma_rmse]
+            print(
+                f"\tGMM_RMSE: pi_rmse: {GMM_pi_rmse:.4}; mu_rmse: {GMM_mu_rmse:.4}; sigma_rmse: {GMM_sigma_rmse:.4}\n")
 
     # record results
     with open(to_csv_path, 'a', newline='', encoding='utf-8') as f:
         csv_write = csv.writer(f)
         csv_write.writerow(results)
 
-        
+
 def compute_rmse_4_consistency_new(stats_dict, path, training_ratio_list, Ch, increase_kernel_size=-1):
     """
     compute RMSE for consistency
@@ -475,9 +477,9 @@ def compute_rmse_4_consistency_new(stats_dict, path, training_ratio_list, Ch, in
     seed = stats_dict['seed']
     np.random.seed(seed)
     tf.random.set_seed(seed)
-    
+
     index = stats_dict['index']
-    
+
     # read in CT data
     sample_CT_path = stats_dict['lung_image_file_list'][index]
     sample_CT_array, lung_mask_array = get_original_data_newversion(stats_dict['lung_image_path'],
@@ -485,7 +487,7 @@ def compute_rmse_4_consistency_new(stats_dict, path, training_ratio_list, Ch, in
     # generate parameters
     pi, voxel_class = generate_pi_new_version(sample_CT_array, lung_mask_array, bone_threshold=400)
     mu, sigma = generate_mu_sigma_new_version(sample_CT_array, voxel_class)
-    
+
     # generate simulate data
     simulate_data, pi_realization = generate_simulate_data_new_version(pi, mu, sigma, seed=seed)
     CT_shape = sample_CT_array.shape
@@ -496,7 +498,8 @@ def compute_rmse_4_consistency_new(stats_dict, path, training_ratio_list, Ch, in
         position_mask = tf.convert_to_tensor(position_mask, dtype=tf.float32)
         training_data = position_mask * simulate_data
 
-        bandwidth, kernel_shape = bandwidth_preparation_big(position_mask, Ch, increase_kernel_size=increase_kernel_size)
+        bandwidth, kernel_shape = bandwidth_preparation_big(position_mask, Ch,
+                                                            increase_kernel_size=increase_kernel_size)
 
         kem = KEM_SIMU_complex(K=3, shape=CT_shape,
                                training_data=training_data,
@@ -511,7 +514,8 @@ def compute_rmse_4_consistency_new(stats_dict, path, training_ratio_list, Ch, in
         pi_rmse, mu_rmse, sigma_rmse = compute_RMSE(kem, pi, mu, sigma)
         print(f"\tUltimate MSE: pi_rmse: {pi_rmse:.4}; mu_rmse: {mu_rmse:.4}; sigma_rmse: {sigma_rmse:.4}")
         # record results
-        mse_results = [f"patient_{index}", seed, CT_shape[0], training_ratio, kernel_shape[0], pi_rmse, mu_rmse, sigma_rmse]
+        mse_results = [f"patient_{index}", seed, CT_shape[0], training_ratio, kernel_shape[0], pi_rmse, mu_rmse,
+                       sigma_rmse]
         with open(path, 'a', newline='', encoding='utf-8') as f:
             csv_write = csv.writer(f)
             csv_write.writerow(mse_results)

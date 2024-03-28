@@ -69,7 +69,7 @@ class GMM:
         random_x_sample_index = np.random.binomial(n=1, p=kmeans_sample_ratio, size=x.shape[0])
         random_x_sample = x[random_x_sample_index == 1]    # maintain the chosen data for kmeans
         print(f"From function(__init__): Randomly pick {random_x_sample_index.sum() / x.shape[0]:.4} data for kmeans.")
-        model = KMeans(n_clusters=self.K, random_state=0)  # kmeans algorithm
+        model = KMeans(n_clusters=self.K)                  # kmeans algorithm
         model.fit(random_x_sample)                         # kmeans fitting
         centers = model.cluster_centers_                   # kmeans centers
         centers = centers.reshape((self.K,))               # reshape the centers into vector form
@@ -169,7 +169,7 @@ class GMM:
         # pi_estimate cannot be 0 since it will serve as denominator
         if tf.reduce_sum(tf.cast(pi_estimate == 0, tf.float32)) > 0:
             print(f"+++ From m_step: add smooth_parameter to pi_estimate")
-            pi_estimate += smooth_parameter                # add smooth parameter
+            pi_estimate += smooth_parameter  # add smooth parameter
         # N = self.shape[0] * self.shape[1] * self.shape[2]
         N = tf.reduce_sum(self.position_mask)
         pi_estimate /= N

@@ -1,8 +1,9 @@
 # KEM
 
-Here is a repository of the codes for the article *A Semiparametric Gaussian Mixture Model for Chest CT Based 3D Blood Vessel Reconstruction*, which is currently finding a home.
+This repository provides python codes for the KEM kernel-based expectation-maximization (KEM) algorithm accompanying the following paper.
 
-**🚩File Tree 230118 Update**
+
+**🚩 File Tree**
 ```
 .
 ├── KEM_experiment
@@ -24,6 +25,12 @@ Here is a repository of the codes for the article *A Semiparametric Gaussian Mix
 
 ## Prerequisites
 
-**🚩Python Packages Needed**
+**🚩 Python Packages**
 
 - `pydicom`
+- `SimpleITK`
+- `tensorflow`
+- `multiprocessing`
+- `glob`
+- `gc`
+- `sklearn`
