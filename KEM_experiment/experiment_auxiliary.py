@@ -288,3 +288,79 @@ def transfer_pi_to_dicom_raw(vessel, original_folder, output_folder, truncate_th
         dcm.save_as(output_folder + dcm_file.split('/')[-1])  # save the slice in dicom type
     print(f"====successfully save the dicom files at {output_folder}====")
     return vessel_uint
+
+
+def experiment_compare_SPE_LUNA(stats_dict, status=None):
+    # information
+    index = stats_dict['index']
+    np.random.seed(index)
+    tf.random.set_seed(index)
+    K = stats_dict["K"]
+    Ch = stats_dict["Ch"]
+    lung_threshold = stats_dict["lung_threshold"]
+    training_ratio = stats_dict["training_ratio"]  # ratio of the voxel positions are used for training
+    lung_threshold = stats_dict["lung_threshold"]
+
+    sample_CT_path = stats_dict['lung_image_file_list'][index]
+    sample_CT_array, lung_mask_array = get_original_data_newversion(stats_dict['lung_image_path'],
+                                                                    stats_dict['lung_mask_path'], sample_CT_path)
+    #     if status is not None and status == "Large":
+    #         sample_CT_array = zoom(sample_CT_array, zoom=(0.5, 1, 1), order=0)
+    #         lung_mask_array = zoom(lung_mask_array, zoom=(0.5, 1, 1), order=0)
+    print(f"---------------WE ARE LOADING {index}th PATIENT's CT with shape {sample_CT_array.shape}---------------")
+
+    # Lung Concentration
+    t1 = time.time()
+    concentrated_data = lung_concentration(sample_CT_array, lung_threshold, 1, 0)
+    t2 = time.time()
+    print(f"lung concentration: {t2 - t1:.6f}")
+    # rescale the data
+    CT_min = concentrated_data.min()
+    CT_max = concentrated_data.max()
+    concentrated_data = (concentrated_data - CT_min) / (CT_max - CT_min)
+    # convert to tensor with shape modified
+    shape = concentrated_data.shape
+    experiment_data = tf.cast(tf.convert_to_tensor(concentrated_data), tf.float32)
+    experiment_data = tf.reshape(experiment_data, (1,) + experiment_data.shape + (1,))
+
+    # generate a mask, if =1 then are maintained as training data
+    position_mask = np.random.binomial(n=1, p=training_ratio, size=experiment_data.shape)
+    position_mask = tf.convert_to_tensor(position_mask, dtype=tf.float32)
+    training_data = position_mask * experiment_data
+    # if =0 then are maintained as testing data
+    testing_data = (1 - position_mask) * experiment_data
+
+    # kmeans
+    kmeans_model = Kmeans(K=K,
+                          shape=shape,
+                          training_data=training_data,
+                          position_mask=position_mask,
+                          kmeans_sample_ratio=1 / 100 / training_ratio,
+                          testing_data=testing_data)
+    kmeans_model.kmeans_algorithm(max_steps=10)
+    kmeans_spe = kmeans_model.compute_prediction_error()
+    # GMM
+    gmm_model = GMM(K=K,
+                    shape=shape,
+                    training_data=training_data,
+                    position_mask=position_mask,
+                    kmeans_sample_ratio=1 / 100 / training_ratio,
+                    testing_data=testing_data)
+    gmm_model.gmm_algorithm(max_steps=10, epsilon=5e-3, smooth_parameter=1e-20)
+    gmm_spe = gmm_model.compute_prediction_error()
+    # KEM
+    bandwidth, kernel_shape = bandwidth_preparation_small(position_mask, Ch)
+    kem_model = KEM_SIMU_complex(K=3,
+                                 shape=shape,
+                                 training_data=training_data,
+                                 position_mask=position_mask,
+                                 kernel_shape=kernel_shape,
+                                 bandwidth=bandwidth,
+                                 kmeans_sample_ratio=1 / 100 / training_ratio,
+                                 testing_data=testing_data)
+    kem_model.kem_algorithm(max_steps=10, epsilon=5e-3, smooth_parameter=1e-20)
+    kem_spe = kem_model.compute_prediction_error()
+    print(f"[{index}'s SPE]\n\tkmeans:{kmeans_spe:.4f};\n\tGMM:{gmm_spe:.4f};\n\tKEM:{kem_spe:.4f}")
+    with open(to_csv_path, 'a', newline='', encoding='utf-8') as f:
+        csv_write = csv.writer(f)
+        csv_write.writerow([index, sample_CT_path, t2 - t1, kem_spe, kmeans_spe, gmm_spe])
