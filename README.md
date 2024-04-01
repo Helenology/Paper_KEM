@@ -1,12 +1,33 @@
 # KEM
 
-This repository provides python codes for the KEM kernel-based expectation-maximization (KEM) algorithm accompanying the following paper.
+This repository provides python codes for the KEM kernel-based expectation-maximization (KEM) algorithm accompanying the paper [A Semiparametric Gaussian Mixture Model for Chest CT-based 3D Blood Vessel Reconstruction](https://arxiv.org/abs/2403.19929) by Qianhan Zeng, Jing Zhou, Ying Ji, and Hansheng Wang (Biostatistics, 2024).
+
+## Citation
+```bibtex
+@misc{zeng2024semiparametric,
+      title={A Semiparametric Gaussian Mixture Model for Chest CT-based 3D Blood Vessel Reconstruction}, 
+      author={Qianhan Zeng and Jing Zhou and Ying Ji and Hansheng Wang},
+      year={2024},
+      eprint={2403.19929},
+      archivePrefix={arXiv},
+      primaryClass={stat.AP}
+}
+```
+
+## Pre-requisites (Python Packages)
+
+- `pydicom`
+- `SimpleITK`
+- `tensorflow`
+- `multiprocessing`
+- `glob`
+- `gc`
+- `sklearn`
 
 
-**🚩 File Tree**
-```
-tree Paper_KEM -L 2
-```
+## File Tree
+
+Below are the contents contained in this repo.
 
 ```
 Paper_KEM
@@ -40,17 +61,9 @@ Paper_KEM
 10 directories, 17 files
 ```
 
-## Pre-requisites (Python Packages)
 
-- `pydicom`
-- `SimpleITK`
-- `tensorflow`
-- `multiprocessing`
-- `glob`
-- `gc`
-- `sklearn`
 
-## Overview
+## Codes Overview
 
 The repository consists of two parts: part 1 is the code for simulation studies, and part 2 is that for real data experiment.
 
