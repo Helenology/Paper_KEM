@@ -1,16 +1,20 @@
 # KEM
 
-This repository provides python codes for the KEM kernel-based expectation-maximization (KEM) algorithm accompanying the paper [A Semiparametric Gaussian Mixture Model for Chest CT-based 3D Blood Vessel Reconstruction](https://arxiv.org/abs/2403.19929) by Qianhan Zeng, Jing Zhou, Ying Ji, and Hansheng Wang (Biostatistics, 2024).
+This repository provides python codes for the KEM kernel-based expectation-maximization (KEM) algorithm accompanying the paper [A Semiparametric Gaussian Mixture Model for Chest CT-based 3D Blood Vessel Reconstruction](https://doi.org/10.1093/biostatistics/kxae013) by Qianhan Zeng, Jing Zhou, Ying Ji, and Hansheng Wang (Biostatistics, 2024).
 
 ## Citation
 ```bibtex
-@misc{zeng2024semiparametric,
-      title={A Semiparametric Gaussian Mixture Model for Chest CT-based 3D Blood Vessel Reconstruction}, 
-      author={Qianhan Zeng and Jing Zhou and Ying Ji and Hansheng Wang},
-      year={2024},
-      eprint={2403.19929},
-      archivePrefix={arXiv},
-      primaryClass={stat.AP}
+@article{Zeng_biostatistics_2024,
+    author = {Zeng, Qianhan and Zhou, Jing and Ji, Ying and Wang, Hansheng},
+    title = "{A semiparametric Gaussian mixture model for chest CT-based 3D blood vessel reconstruction}",
+    journal = {Biostatistics},
+    pages = {kxae013},
+    year = {2024},
+    month = {04},
+    issn = {1465-4644},
+    doi = {10.1093/biostatistics/kxae013},
+    url = {https://doi.org/10.1093/biostatistics/kxae013},
+    eprint = {https://academic.oup.com/biostatistics/advance-article-pdf/doi/10.1093/biostatistics/kxae013/58914368/kxae013.pdf},
 }
 ```
 
