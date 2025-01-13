@@ -20,7 +20,7 @@ This repository provides python codes for the KEM kernel-based expectation-maxim
 
 ## Pre-requisites (Python Packages)
 
-- `pydicom`
+- `pydicom`: pydicom-2.4.4
 - `SimpleITK`
 - `tensorflow`
 - `multiprocessing`
